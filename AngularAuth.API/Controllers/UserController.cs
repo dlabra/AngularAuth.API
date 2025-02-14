@@ -1,6 +1,6 @@
 ﻿using AngularAuth.API.Context;
+using AngularAuth.API.Helpers;
 using AngularAuth.API.Models;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -27,9 +27,10 @@ namespace AngularAuth.API.Controllers
             if (user == null)
                 return NotFound(new { Message = "User not found" });
 
-            var userPass = await _appDbContext.Users.FirstOrDefaultAsync(x => x.Username == userObj.Username && x.Password == userObj.Password);
-            if (userPass == null)
+            var passwordMatch = PasswordHasher.VerifyPassword(userObj.Password, user.Password);
+            if (!passwordMatch)
                 return NotFound(new { Message = "Password incorrect" });
+
 
             return Ok( new { Message = "Login Success!"});
         }
@@ -48,7 +49,15 @@ namespace AngularAuth.API.Controllers
             if (userEmail != null)
                 return NotFound(new { Message = "Email already registered" });
 
+            //check password strengh
+            var pass = PasswordHasher.CheckPasswordStrength(userObj.Password);
+            if(!string.IsNullOrEmpty(pass))
+                return BadRequest(new { Message = pass });
+
             userObj.Role = string.IsNullOrEmpty(userObj.Role) ? "User" : userObj.Role;
+            userObj.Password = PasswordHasher.HashPassword(userObj.Password);
+            userObj.Token = string.Empty;
+
             await _appDbContext.Users.AddAsync(userObj);
             await _appDbContext.SaveChangesAsync();
 
