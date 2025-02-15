@@ -31,8 +31,13 @@ namespace AngularAuth.API.Controllers
             if (!passwordMatch)
                 return NotFound(new { Message = "Password incorrect" });
 
+            user.Token = JwtToken.CreateJwt(user);
 
-            return Ok( new { Message = "Login Success!"});
+            return Ok( new 
+            {
+                user.Token,
+                Message = "Login Success!"
+            });
         }
 
         [HttpPost("register")]
@@ -62,6 +67,13 @@ namespace AngularAuth.API.Controllers
             await _appDbContext.SaveChangesAsync();
 
             return Ok(new { Message = "User Registered!" });
+        }
+
+        [HttpGet]
+        public async Task<ActionResult<List<User>>> GetAllUsers()
+        {
+            var allUsers = await _appDbContext.Users.ToListAsync();
+            return allUsers;
         }
     }
 }
