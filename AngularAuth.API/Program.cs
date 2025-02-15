@@ -1,5 +1,6 @@
 
 using AngularAuth.API.Context;
+using AngularAuth.API.Helpers;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -36,6 +37,7 @@ namespace AngularAuth.API
             });
 
             //added to use JWT
+            builder.Services.AddSingleton<JwtToken>();
             builder.Services.AddAuthentication(x =>
             {
                 x.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -47,7 +49,7 @@ namespace AngularAuth.API
                 x.TokenValidationParameters = new TokenValidationParameters()
                 {
                     ValidateIssuerSigningKey = true,
-                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes("this is my custom Secret key for authentication")),
+                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["JwtSecretKey"])),
                     ValidateIssuer = false,
                     ValidateAudience = false
                 };

@@ -12,8 +12,11 @@ namespace AngularAuth.API.Controllers
     {
         //Inject appDbContext
         private readonly AppDbContext _appDbContext;
-        public UserController(AppDbContext appDbContext)
+        private readonly JwtToken _jwtToken;
+
+        public UserController(AppDbContext appDbContext, JwtToken jwtToken)
         {
+            _jwtToken = jwtToken;
             _appDbContext = appDbContext;
         }
 
@@ -31,7 +34,7 @@ namespace AngularAuth.API.Controllers
             if (!passwordMatch)
                 return NotFound(new { Message = "Password incorrect" });
 
-            user.Token = JwtToken.CreateJwt(user);
+            user.Token = _jwtToken.CreateJwt(user);
 
             return Ok( new 
             {

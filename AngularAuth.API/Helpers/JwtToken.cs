@@ -8,10 +8,17 @@ namespace AngularAuth.API.Helpers
 {
     public class JwtToken
     {
-        public static string CreateJwt(User user)
+        private readonly string _secretKey;
+
+        public JwtToken(IConfiguration configuration)
+        {
+            _secretKey = configuration["JwtSecretKey"].ToString();
+        }
+
+        public string CreateJwt(User user)
         {
             var jwtTokenHandler = new JwtSecurityTokenHandler();
-            var key = Encoding.ASCII.GetBytes("this is my custom Secret key for authentication");
+            var key = Encoding.ASCII.GetBytes(_secretKey);
             var identity = new ClaimsIdentity(new Claim[]
             {
                 new Claim(ClaimTypes.Role, user.Role),
