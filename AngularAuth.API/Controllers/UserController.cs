@@ -1,6 +1,7 @@
 ﻿using AngularAuth.API.Context;
 using AngularAuth.API.Helpers;
 using AngularAuth.API.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -36,7 +37,7 @@ namespace AngularAuth.API.Controllers
 
             user.Token = _jwtToken.CreateJwt(user);
 
-            return Ok( new 
+            return Ok(new
             {
                 user.Token,
                 Message = "Login Success!"
@@ -59,7 +60,7 @@ namespace AngularAuth.API.Controllers
 
             //check password strengh
             var pass = PasswordHasher.CheckPasswordStrength(userObj.Password);
-            if(!string.IsNullOrEmpty(pass))
+            if (!string.IsNullOrEmpty(pass))
                 return BadRequest(new { Message = pass });
 
             userObj.Role = string.IsNullOrEmpty(userObj.Role) ? "User" : userObj.Role;
@@ -72,6 +73,7 @@ namespace AngularAuth.API.Controllers
             return Ok(new { Message = "User Registered!" });
         }
 
+        [Authorize]
         [HttpGet]
         public async Task<ActionResult<List<User>>> GetAllUsers()
         {
