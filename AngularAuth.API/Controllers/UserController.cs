@@ -1,6 +1,7 @@
 ﻿using AngularAuth.API.Context;
 using AngularAuth.API.Helpers;
 using AngularAuth.API.Models;
+using AngularAuth.API.Models.Dto;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -34,13 +35,19 @@ namespace AngularAuth.API.Controllers
             var passwordMatch = PasswordHasher.VerifyPassword(userObj.Password, user.Password);
             if (!passwordMatch)
                 return NotFound(new { Message = "Password incorrect" });
-
+            
             user.Token = _jwtToken.CreateJwt(user);
+            var newAccessToken = user.Token;
+            var newRefreshToken = _jwtToken.CreateRefreshToken(_appDbContext);
 
-            return Ok(new
+            user.RefreshToken = newRefreshToken;
+            user.RefreshTokenExpiryTime = DateTime.Now.AddDays(5);
+            await _appDbContext.SaveChangesAsync();
+
+            return Ok(new TokenApiDto
             {
-                user.Token,
-                Message = "Login Success!"
+                AccessToken = newAccessToken,
+                RefreeshToken = newRefreshToken
             });
         }
 
@@ -79,6 +86,35 @@ namespace AngularAuth.API.Controllers
         {
             var allUsers = await _appDbContext.Users.ToListAsync();
             return allUsers;
+        }
+
+        [HttpPost("refresh")]
+        public async Task<IActionResult> RefreshToken([FromBody] TokenApiDto tokenApiDto)
+        {
+            if (tokenApiDto is null)
+                return BadRequest();
+
+            string accessToken = tokenApiDto.AccessToken;
+            string refreshToken = tokenApiDto.RefreeshToken;
+
+            var principal = _jwtToken.GetPrincipalFromExpiredToken(accessToken);
+            var username = principal.Identity.Name;
+            var user = await _appDbContext.Users.FirstOrDefaultAsync(x => x.Username == username);
+
+            if (user == null || user.RefreshToken != refreshToken || user.RefreshTokenExpiryTime <= DateTime.Now)
+                return BadRequest(new { Message = "Invalid token" });
+
+            var newAccessToken = _jwtToken.CreateJwt(user);
+            var newRefreshToken = _jwtToken.CreateRefreshToken(_appDbContext);
+
+            user.RefreshToken = newRefreshToken;
+            await _appDbContext.SaveChangesAsync();
+
+            return Ok(new TokenApiDto
+            {
+                AccessToken = newAccessToken,
+                RefreeshToken = newRefreshToken
+            });
         }
     }
 }
