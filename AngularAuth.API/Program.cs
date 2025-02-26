@@ -1,6 +1,7 @@
 
 using AngularAuth.API.Context;
 using AngularAuth.API.Helpers;
+using AngularAuth.API.Utility;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -35,6 +36,8 @@ namespace AngularAuth.API
             {
                 option.UseSqlServer(builder.Configuration.GetConnectionString("SqlServerConnStr"));
             });
+
+            builder.Services.AddScoped<IEmailService, EmailService>();
 
             //added to use JWT
             builder.Services.AddSingleton<JwtToken>();

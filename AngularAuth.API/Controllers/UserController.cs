@@ -2,6 +2,7 @@
 using AngularAuth.API.Helpers;
 using AngularAuth.API.Models;
 using AngularAuth.API.Models.Dto;
+using AngularAuth.API.Utility;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -15,11 +16,15 @@ namespace AngularAuth.API.Controllers
         //Inject appDbContext
         private readonly AppDbContext _appDbContext;
         private readonly JwtToken _jwtToken;
+        private readonly IConfiguration _configuration;
+        private readonly IEmailService _emailService;
 
-        public UserController(AppDbContext appDbContext, JwtToken jwtToken)
+        public UserController(AppDbContext appDbContext, JwtToken jwtToken, IConfiguration configuration, IEmailService emailService)
         {
             _jwtToken = jwtToken;
             _appDbContext = appDbContext;
+            _configuration = configuration;
+            _emailService = emailService;
         }
 
         [HttpPost("authenticate")]
@@ -35,7 +40,7 @@ namespace AngularAuth.API.Controllers
             var passwordMatch = PasswordHasher.VerifyPassword(userObj.Password, user.Password);
             if (!passwordMatch)
                 return NotFound(new { Message = "Password incorrect" });
-            
+
             user.Token = _jwtToken.CreateJwt(user);
             var newAccessToken = user.Token;
             var newRefreshToken = _jwtToken.CreateRefreshToken(_appDbContext);
@@ -115,6 +120,62 @@ namespace AngularAuth.API.Controllers
                 AccessToken = newAccessToken,
                 RefreeshToken = newRefreshToken
             });
+        }
+
+        [HttpPost("send-reset-email/{email}")]
+        public async Task<IActionResult> SendEmail(string email)
+        {
+            if (string.IsNullOrEmpty(email))
+                return BadRequest();
+            var user = await _appDbContext.Users.FirstOrDefaultAsync(x => x.Email == email);
+            if (user == null)
+                return NotFound(new { Message = "Email not found" });
+
+            var token = _jwtToken.CreateRefreshToken(_appDbContext);
+            user.ResetPasswordToken = token;
+            user.ResetPasswordExpiry = DateTime.Now.AddMinutes(15);
+            await _appDbContext.SaveChangesAsync();
+
+            //send email
+            string from = _configuration["EmailSettings:From"];
+            EmailModel emailModel = new EmailModel(email, "Reset Password", EmailBody.EmailStringBody(email, token));
+            _emailService.SendEmail(emailModel);
+            _appDbContext.Entry(user).State = EntityState.Modified;
+
+            await _appDbContext.SaveChangesAsync();
+
+            return Ok(new 
+            {
+                StatusCode = 200,
+                Message = "Email sent" 
+            });
+
+        }
+
+        [HttpPost("reset-password")]
+        public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordDto resetPasswordDto)
+        {
+            if (resetPasswordDto is null)
+                return BadRequest();
+
+            var user = await _appDbContext.Users.AsNoTracking().FirstOrDefaultAsync(x => x.Email == resetPasswordDto.Email);
+            if (user == null)
+                return NotFound(new { Message = "Email not found" });
+
+            if (user.ResetPasswordToken != resetPasswordDto.EmailToken || user.ResetPasswordExpiry <= DateTime.Now)
+                return BadRequest(new { Message = "Invalid token" });
+
+            var passwordStrenght = PasswordHasher.CheckPasswordStrength(resetPasswordDto.NewPassword);
+            if (!string.IsNullOrEmpty(passwordStrenght))
+                return BadRequest(new { Message = passwordStrenght });
+
+            user.Password = PasswordHasher.HashPassword(resetPasswordDto.NewPassword);
+            user.ResetPasswordToken = string.Empty;
+            user.ResetPasswordExpiry = DateTime.Now;
+            _appDbContext.Entry(user).State = EntityState.Modified;
+            await _appDbContext.SaveChangesAsync();
+
+            return Ok(new { Message = "Password reset successful" });
         }
     }
 }
